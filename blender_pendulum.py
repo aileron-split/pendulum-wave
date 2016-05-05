@@ -91,7 +91,6 @@ class ObjectPendulumWaveCalculate(bpy.types.Operator):
 
         N = len([n for n in bpy.data.objects.keys() if n.startswith(_ALL_PIVOT[:-1])])
         
-        
         pivot = bpy.data.objects[_PIVOT_NAME % 0]
         kugla = bpy.data.objects[_KUGLA_NAME % 0]
         distance = (pivot.location - kugla.location).length
@@ -107,7 +106,7 @@ class ObjectPendulumWaveCalculate(bpy.types.Operator):
             pivot.location.z = origin.z + length * self.bias
 
             kugla.rotation_euler = Euler()
-            kugla.location.x = 0.0
+            kugla.location.x = origin.x
             kugla.location.z = origin.z - length * (1.0 - self.bias)
 
         return {'FINISHED'}            # this lets blender know the operator finished successfully.
