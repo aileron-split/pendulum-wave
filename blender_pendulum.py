@@ -14,8 +14,10 @@ from math import pi, pow, radians
 _GROUP_NAME = 'PendulumWave'
 _PIVOT_NAME = _GROUP_NAME + '.Pivot.%03d'
 _KUGLA_NAME = _GROUP_NAME + '.Kugla.%03d'
+_SPAGA_NAME = _GROUP_NAME + '.Spaga-%d.%03d'
 _ALL_PIVOT = _GROUP_NAME + '.Pivot.*'
 _ALL_KUGLA = _GROUP_NAME + '.Kugla.*'
+_ALL_SPAGA = _GROUP_NAME + '.Spaga-*'
 
 class ObjectPendulumWaveCreate(bpy.types.Operator):
     """Create Pendulum Wave System"""         # blender will use this as a tooltip for menu items and buttons.
@@ -25,7 +27,9 @@ class ObjectPendulumWaveCreate(bpy.types.Operator):
 
     N = bpy.props.IntProperty(name="Pendulum count", default=16, min=2, max=100)
     ball_size = bpy.props.FloatProperty(name="Ball size", default=0.2, min=0.0)
-    spacing = bpy.props.FloatProperty(name="Spacing", default=0.3, min=0.0)
+    spacing = bpy.props.FloatProperty(name="Ball spacing", default=0.3, min=0.0)
+    rope_width = bpy.props.FloatProperty(name="Rope width", default=0.003, min=0.0)
+    rope_spacing = bpy.props.FloatProperty(name="Rope spacing", default=0.3, min=0.0)
 
     def execute(self, context):        # execute() is called by blender when running the operator.
         step = self.ball_size + self.spacing
@@ -37,8 +41,18 @@ class ObjectPendulumWaveCreate(bpy.types.Operator):
             bpy.ops.object.delete()
         else:
             bpy.ops.group.create(name=_GROUP_NAME)
+            
+        pivot_mesh_transform = Matrix.Translation(Vector((0, self.ball_size / 2.0, 0))) * \
+                               Matrix.Scale(self.rope_width * 10.0, 4, Vector((1, 0, 0))) * \
+                               Matrix.Scale(self.ball_size, 4, Vector((0, 1, 0))) * \
+                               Matrix.Scale(self.rope_spacing, 4, Vector((0, 0, 1)))
+                               
+        rope_mesh_transform =  Matrix.Rotation(pi/2, 4, 'X') * \
+                               Matrix.Translation(Vector((0, 0, -1)))
+
         
         for i in range(self.N):
+            # Kugla
             bpy.ops.mesh.primitive_uv_sphere_add(
                 size=self.ball_size / 2.0,
                 view_align=False, 
@@ -51,14 +65,16 @@ class ObjectPendulumWaveCreate(bpy.types.Operator):
             context.object.rigid_body.linear_damping = 0
             context.object.rigid_body.angular_damping = 0
             
+            # Pivot
             bpy.ops.mesh.primitive_cube_add(
-                radius=self.ball_size / 2.0, 
+                radius=0.5, 
                 view_align=False, 
                 enter_editmode=False, 
                 location=cursor + Vector((0.0, step * i, 0.0)), 
                 )
             context.object.name = _PIVOT_NAME % i
             bpy.ops.object.group_link(group=_GROUP_NAME)
+            context.object.data.transform(pivot_mesh_transform)
             bpy.ops.rigidbody.object_add()
             context.object.rigid_body.type = 'PASSIVE'
             context.object.rotation_euler = Euler((pi/2.0, 0.0, 0.0), 'XYZ')
@@ -67,6 +83,37 @@ class ObjectPendulumWaveCreate(bpy.types.Operator):
             context.object.rigid_body_constraint.type = 'HINGE'
             context.object.rigid_body_constraint.object1 = bpy.data.objects[_PIVOT_NAME % i]
             context.object.rigid_body_constraint.object2 = bpy.data.objects[_KUGLA_NAME % i]
+            
+            # Spage
+            rope_offset = self.rope_spacing / 2.0
+            bpy.ops.mesh.primitive_cylinder_add(
+                vertices=6, 
+                radius=self.rope_width, 
+                depth=2,
+                location=Vector((0, 0, -rope_offset)), 
+                )
+            context.object.name = _SPAGA_NAME % (1, i)
+            context.object.parent = bpy.data.objects[_PIVOT_NAME % i]
+            bpy.ops.object.group_link(group=_GROUP_NAME)
+            context.object.data.transform(rope_mesh_transform)
+            bpy.ops.object.constraint_add(type='STRETCH_TO')
+            context.object.constraints["Stretch To"].target = bpy.data.objects[_KUGLA_NAME % i]
+            context.object.constraints["Stretch To"].rest_length = 2
+
+            bpy.ops.mesh.primitive_cylinder_add(
+                vertices=6, 
+                radius=self.rope_width, 
+                depth=2,
+                location=Vector((0, 0, +rope_offset)), 
+                )
+            context.object.name = _SPAGA_NAME % (2, i)
+            context.object.parent = bpy.data.objects[_PIVOT_NAME % i]
+            bpy.ops.object.group_link(group=_GROUP_NAME)
+            context.object.data.transform(rope_mesh_transform)
+            bpy.ops.object.constraint_add(type='STRETCH_TO')
+            context.object.constraints["Stretch To"].target = bpy.data.objects[_KUGLA_NAME % i]
+            context.object.constraints["Stretch To"].rest_length = 2
+
                         
         bpy.ops.object.select_pattern(pattern=_PIVOT_NAME % 0, extend=False)
         context.scene.objects.active = bpy.data.objects[_PIVOT_NAME % 0]
